@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { SpiderWebIcon, BackgroundWebPattern } from './components/Icons';
+import { TaskProvider, useTasks } from './context/TaskContext';
+import { OpeningActivation } from './components/OpeningActivation';
+import { HeroSection } from './components/HeroSection';
 import { RealityCheck } from './components/RealityCheck';
 import { WhatIfMachine } from './components/WhatIfMachine';
+import { EmergencyReplanner } from './components/EmergencyReplanner';
+import { ConfirmationModal } from './components/ConfirmationModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { SpiderWebIcon, BackgroundWebPattern } from './components/Icons';
 import { getStoredApiKey } from './services/gemini';
-import { Key, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
+import { Key, Play, AlertCircle, Compass, Activity, AlertOctagon } from 'lucide-react';
 
-export default function App() {
+function AppContent() {
+  const { confirmationModal, closeConfirmationModal } = useTasks();
   const [isApiModalOpen, setIsApiModalOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [forceActivation, setForceActivation] = useState(false);
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'reality' | 'whatif' | 'emergency'
 
   useEffect(() => {
     setApiKey(getStoredApiKey());
@@ -18,13 +26,23 @@ export default function App() {
     setApiKey(newKey);
   };
 
+  const handleNavigateToSection = (sectionId) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="app-wrapper">
-      {/* Background Spider-Web Texture Overlay */}
+      {/* Spider-Sense Cinematic Opening Activation */}
+      <OpeningActivation forcePlay={forceActivation} onComplete={() => setForceActivation(false)} />
+
+      {/* Subtle Spider-Web Texture Background */}
       <div className="web-background" />
       <BackgroundWebPattern />
 
-      {/* Fixed Top Nav */}
+      {/* Fixed Top Navigation Bar */}
       <header className="top-nav">
         <div className="nav-container">
           <a href="#" className="brand-link">
@@ -37,7 +55,43 @@ export default function App() {
             </div>
           </a>
 
+          {/* Quick Nav Anchor Links */}
+          <nav className="nav-quick-links" aria-label="Feature navigation">
+            <button
+              type="button"
+              className="nav-link-btn"
+              onClick={() => handleNavigateToSection('reality-check')}
+            >
+              <Activity size={13} /> Reality Check
+            </button>
+            <button
+              type="button"
+              className="nav-link-btn"
+              onClick={() => handleNavigateToSection('what-if-machine')}
+            >
+              <Compass size={13} /> What-If
+            </button>
+            <button
+              type="button"
+              className="nav-link-btn nav-link-emergency"
+              onClick={() => handleNavigateToSection('emergency-replanner')}
+            >
+              <AlertOctagon size={13} /> Emergency
+            </button>
+          </nav>
+
+          {/* Controls: Replay Activation & API Key */}
           <div className="nav-controls">
+            <button
+              type="button"
+              className="btn-replay"
+              onClick={() => setForceActivation(true)}
+              title="Replay Spider-Sense Activation Sequence"
+            >
+              <Play size={12} />
+              <span>Intro</span>
+            </button>
+
             <button
               type="button"
               className={`status-badge ${apiKey ? 'status-live' : 'status-demo'}`}
@@ -46,7 +100,7 @@ export default function App() {
               style={{ cursor: 'pointer', background: 'transparent' }}
             >
               <span className="status-dot" />
-              <span>{apiKey ? 'Gemini 1.5 Live' : 'Demo / Heuristic Mode'}</span>
+              <span>{apiKey ? 'Gemini 1.5 Live' : 'Demo Mode'}</span>
             </button>
 
             <button
@@ -56,47 +110,25 @@ export default function App() {
               title="Manage Gemini API Key"
             >
               <Key size={14} />
-              <span style={{ display: 'none', smDisplay: 'inline' }}>
-                {apiKey ? 'API Key Set' : 'Add API Key'}
-              </span>
+              <span className="key-btn-label">{apiKey ? 'Key Set' : 'Add Key'}</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Main Container */}
       <main className="main-content">
-        {/* Hero Section */}
-        <section className="hero-section">
-          <div className="hero-pill">
-            <ShieldCheck size={13} />
-            <span>Student Decision Assistant</span>
-          </div>
+        {/* Redesigned Hero Section */}
+        <HeroSection onNavigateToSection={handleNavigateToSection} />
 
-          <h1 className="hero-title">
-            SPIDER-<span>SENSE</span>
-          </h1>
-
-          <h2 className="hero-subtitle">Your Personal Decision Assistant</h2>
-
-          <p className="hero-body">
-            Most apps tell you what to do. Spider-Sense helps you understand what you{' '}
-            <em className="hero-highlight-can">can</em> realistically do — and what happens if you choose differently.
-          </p>
-
-          <p className="hero-quote">
-            "With great power comes great responsibility." — <strong>Uncle Ben</strong>
-          </p>
-        </section>
-
-        {/* Notice for First-Time Users if No Key is Set */}
+        {/* Informative Banner if running in demo fallback mode */}
         {!apiKey && (
           <div className="api-notice">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
               <AlertCircle size={16} />
               <span>
-                Ready to use! Spider-Sense is currently running in local heuristic mode. Connect your free{' '}
-                <strong>Gemini API Key</strong> for live AI evaluations.
+                Spider-Sense is running on the local deterministic heuristic engine. Connect a free{' '}
+                <strong>Gemini API Key</strong> in the header for real-time generative reasoning.
               </span>
             </div>
             <button type="button" onClick={() => setIsApiModalOpen(true)}>
@@ -105,13 +137,16 @@ export default function App() {
           </div>
         )}
 
-        {/* The Two Core Features Grid: What-If Machine first for immediate high-impact demo */}
+        {/* The 3 Core Pillars in Unified Architecture */}
         <div className="features-grid">
-          {/* Feature 1: WHAT-IF MACHINE (Lead feature) */}
+          {/* Pillar 1: REALITY CHECK */}
+          <RealityCheck onOpenApiModal={() => setIsApiModalOpen(true)} />
+
+          {/* Pillar 2: WHAT-IF MACHINE (With The Third Path) */}
           <WhatIfMachine onOpenApiModal={() => setIsApiModalOpen(true)} />
 
-          {/* Feature 2: REALITY CHECK */}
-          <RealityCheck onOpenApiModal={() => setIsApiModalOpen(true)} />
+          {/* Pillar 3: EMERGENCY REPLANNER (New!) */}
+          <EmergencyReplanner onOpenApiModal={() => setIsApiModalOpen(true)} />
         </div>
       </main>
 
@@ -122,12 +157,25 @@ export default function App() {
         </p>
       </footer>
 
-      {/* API Key Modal */}
+      {/* Modals */}
       <ApiKeyModal
         isOpen={isApiModalOpen}
         onClose={() => setIsApiModalOpen(false)}
         onKeyUpdated={handleKeyUpdated}
       />
+
+      <ConfirmationModal
+        modalState={confirmationModal}
+        onClose={closeConfirmationModal}
+      />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <TaskProvider>
+      <AppContent />
+    </TaskProvider>
   );
 }

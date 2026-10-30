@@ -1,58 +1,112 @@
 import React, { useState } from 'react';
+import { useTasks } from '../context/TaskContext';
 import { analyzeRealityCheck } from '../services/gemini';
-import { Clock, AlertTriangle, CheckCircle2, Sparkles, Copy, Check } from 'lucide-react';
-
-const PRESETS = [
-  {
-    name: 'Overloaded Day (8h tasks vs 5h free)',
-    tasks: '3 hours coding, 2 hours study, 1 hour gym, 2 hours assignment',
-    freeHours: 5,
-  },
-  {
-    name: 'Balanced Midweek (4.5h tasks vs 6h free)',
-    tasks: '2 hours discrete math problem set, 1.5 hours club web project, 1 hour gym',
-    freeHours: 6,
-  },
-  {
-    name: 'Exam Crunch (7h tasks vs 3h free)',
-    tasks: '4 hours OS revision, 2 hours lab report, 1 hour group meeting',
-    freeHours: 3,
-  },
-];
+import {
+  Clock,
+  AlertTriangle,
+  CheckCircle2,
+  Sparkles,
+  Copy,
+  Check,
+  Plus,
+  Trash2,
+  Lock,
+  Unlock,
+  Calendar,
+  Layers,
+  ArrowRight,
+  TrendingUp,
+} from 'lucide-react';
+import { SpiderIcon } from './Icons';
 
 export function RealityCheck({ onOpenApiModal }) {
-  const [tasks, setTasks] = useState('');
-  const [freeHours, setFreeHours] = useState('');
+  const {
+    tasks,
+    freeHours,
+    constraints,
+    stats,
+    tasksAsPromptText,
+    addTask,
+    updateTask,
+    removeTask,
+    setFreeHours,
+    setConstraints,
+    requestScheduleApplication,
+    setAllTasks,
+  } = useTasks();
+
   const [loading, setLoading] = useState(false);
+  const [progressStage, setProgressStage] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [appliedNotice, setAppliedNotice] = useState(false);
 
-  const handleApplyPreset = (preset) => {
-    setTasks(preset.tasks);
-    setFreeHours(preset.freeHours.toString());
-    setResult(null);
-    setError(null);
+  // New task quick-entry state
+  const [newTitle, setNewTitle] = useState('');
+  const [newDuration, setNewDuration] = useState('1.5');
+  const [newPriority, setNewPriority] = useState('medium');
+  const [newType, setNewType] = useState('flexible');
+  const [newDeadline, setNewDeadline] = useState('');
+
+  const handleAddNewTask = (e) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+    addTask({
+      title: newTitle.trim(),
+      duration: parseFloat(newDuration) || 1,
+      priority: newPriority,
+      type: newType,
+      deadline: newDeadline.trim(),
+    });
+    setNewTitle('');
+    setNewDeadline('');
   };
 
   const handleAnalyze = async (e) => {
-    e.preventDefault();
-    if (!tasks.trim() || !freeHours) return;
+    e?.preventDefault?.();
+    if (tasks.length === 0 || !freeHours) return;
 
     setLoading(true);
     setError(null);
+    setProgressStage('Scanning your commitments...');
 
     try {
       const data = await analyzeRealityCheck({
-        tasks: tasks.trim(),
-        freeHours: freeHours.trim(),
+        tasks: tasksAsPromptText,
+        freeHours: freeHours.toString(),
+        constraints,
+        structuredTasks: tasks,
+        onProgress: (stage) => setProgressStage(stage),
       });
       setResult(data);
     } catch (err) {
-      setError(err.message || 'Failed to analyze schedule. Please try again.');
+      setError(err.message || 'Failed to evaluate plan. Please check inputs.');
     } finally {
       setLoading(false);
+      setProgressStage('');
     }
+  };
+
+  const handleApplySuggested = () => {
+    if (!result?.suggestedPlan) return;
+
+    requestScheduleApplication(result.suggestedPlan, 'Reality Check Engine', () => {
+      // Re-map tasks to fit available hours
+      const updated = tasks.map((t, idx) => {
+        if (t.type === 'fixed') {
+          return t; // keep fixed
+        }
+        // compress flexible tasks
+        return {
+          ...t,
+          duration: Math.max(0.5, Number((t.duration * 0.65).toFixed(1))),
+        };
+      });
+      setAllTasks(updated);
+      setAppliedNotice(true);
+      setTimeout(() => setAppliedNotice(false), 3500);
+    });
   };
 
   const handleCopy = () => {
@@ -64,129 +118,267 @@ export function RealityCheck({ onOpenApiModal }) {
 
   return (
     <section className="feature-card" id="reality-check">
+      {/* Header */}
       <div className="card-header">
         <div className="card-header-left">
           <div className="card-icon-badge">
             <Clock size={22} />
           </div>
           <div className="card-title-group">
+            <div className="card-section-label">01 · AUDIT YOUR CAPACITY</div>
             <h2>REALITY CHECK</h2>
-            <p>Audit your day's ambition against the harsh math of available hours.</p>
+            <p>Determine whether your day's planned activities fit within your available hours.</p>
           </div>
         </div>
 
-        {/* Quick Presets */}
-        <div className="presets-container">
-          <span style={{ fontSize: '0.74rem', color: 'var(--off-white-dim)', marginRight: '0.2rem' }}>
-            Presets:
+        {/* Deterministic Quick Ratio Pill */}
+        <div className="capacity-pill-summary">
+          <span className="capacity-label">Workload Ratio:</span>
+          <span className={`capacity-value ${stats.isOverloaded ? 'overloaded' : 'feasible'}`}>
+            {stats.workloadPercentage}%
           </span>
-          {PRESETS.map((p, idx) => (
-            <button
-              key={idx}
-              type="button"
-              className="preset-chip"
-              onClick={() => handleApplyPreset(p)}
-              title={p.tasks}
-            >
-              {p.name.split(' (')[0]}
-            </button>
-          ))}
         </div>
       </div>
 
-      <form onSubmit={handleAnalyze}>
-        <div className="form-row two-col">
-          <div className="form-group">
-            <label className="form-label" htmlFor="daily-tasks">
-              <span>Today's Planned Tasks & Estimates</span>
-              <span className="form-hint">e.g. 3h coding, 2h study, 1h gym</span>
-            </label>
-            <textarea
-              id="daily-tasks"
-              className="input-field"
-              rows={4}
-              placeholder="3 hours coding, 2 hours study, 1 hour gym, 2 hours assignment..."
-              value={tasks}
-              onChange={(e) => setTasks(e.target.value)}
-              required
-            />
+      {/* Deterministic Visual Workload Progress Meter */}
+      <div className="workload-meter-container">
+        <div className="workload-meter-header">
+          <div className="meter-stat">
+            <span className="meter-label">Planned Time:</span>
+            <span className="meter-val">{stats.totalPlanned}h</span>
           </div>
+          <div className="meter-stat">
+            <span className="meter-label">Available Free Hours:</span>
+            <span className="meter-val">{stats.available}h</span>
+          </div>
+          <div className="meter-stat">
+            <span className="meter-label">Capacity Delta:</span>
+            <span className={`meter-val ${stats.isOverloaded ? 'text-deficit' : 'text-surplus'}`}>
+              {stats.isOverloaded ? `-${stats.overloadHours}h Deficit` : `+${stats.balance}h Cushion`}
+            </span>
+          </div>
+        </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="free-hours">
-              <span>Actual Free Hours</span>
-              <span className="form-hint">Excl. classes & sleep</span>
-            </label>
+        <div className="meter-bar-track">
+          <div
+            className={`meter-bar-fill ${stats.isOverloaded ? 'bar-overloaded' : 'bar-feasible'}`}
+            style={{ width: `${Math.min(stats.workloadPercentage, 100)}%` }}
+          />
+          {stats.workloadPercentage > 100 && (
+            <div
+              className="meter-bar-overflow"
+              style={{ width: `${Math.min(stats.workloadPercentage - 100, 60)}%` }}
+              title={`Overflow: +${stats.overloadHours}h beyond capacity`}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Dynamic Structured Task Manager */}
+      <div className="tasks-manager-section">
+        <div className="manager-title-bar">
+          <span className="manager-title">
+            <Layers size={14} /> Active Daily Commitments ({tasks.length})
+          </span>
+          <span className="manager-sub">
+            {stats.fixedHours}h Fixed · {stats.flexibleHours}h Flexible
+          </span>
+        </div>
+
+        <div className="tasks-list-grid">
+          {tasks.map((task) => (
+            <div key={task.id} className={`task-item-card ${task.type === 'fixed' ? 'is-fixed' : 'is-flexible'}`}>
+              <div className="task-item-main">
+                <button
+                  type="button"
+                  className={`task-type-toggle ${task.type}`}
+                  onClick={() => updateTask(task.id, { type: task.type === 'fixed' ? 'flexible' : 'fixed' })}
+                  title={task.type === 'fixed' ? 'Fixed commitment (Non-negotiable)' : 'Flexible activity (Can compress/defer)'}
+                >
+                  {task.type === 'fixed' ? <Lock size={12} /> : <Unlock size={12} />}
+                  <span>{task.type}</span>
+                </button>
+
+                <div className="task-title-area">
+                  <span className="task-title-text">{task.title}</span>
+                  {task.deadline && (
+                    <span className="task-deadline-badge">
+                      <Calendar size={11} /> {task.deadline}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="task-item-controls">
+                <span className={`task-priority-badge priority-${task.priority}`}>
+                  {task.priority}
+                </span>
+
+                <div className="task-duration-picker">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    max="12"
+                    value={task.duration}
+                    onChange={(e) => updateTask(task.id, { duration: parseFloat(e.target.value) || 0.5 })}
+                    className="task-duration-input"
+                  />
+                  <span className="duration-unit">h</span>
+                </div>
+
+                <button
+                  type="button"
+                  className="task-delete-btn"
+                  onClick={() => removeTask(task.id)}
+                  aria-label="Remove task"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick Add Task Row */}
+        <form onSubmit={handleAddNewTask} className="add-task-row">
+          <input
+            type="text"
+            className="input-field task-add-title"
+            placeholder="Add task (e.g. Distributed Systems Lab)..."
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+          />
+
+          <div className="task-add-fields">
             <input
-              id="free-hours"
               type="number"
               step="0.5"
               min="0.5"
-              max="24"
-              className="input-field"
-              placeholder="e.g. 5"
-              value={freeHours}
-              onChange={(e) => setFreeHours(e.target.value)}
-              required
+              max="12"
+              className="input-field task-add-hours"
+              placeholder="Hours"
+              value={newDuration}
+              onChange={(e) => setNewDuration(e.target.value)}
+              title="Estimated hours"
             />
-            <div style={{ marginTop: '0.65rem', fontSize: '0.78rem', color: 'var(--off-white-dim)' }}>
-              Spider-Sense will evaluate cognitive load, buffer limits, and generate a trimmed schedule.
-            </div>
-          </div>
-        </div>
 
-        <div className="btn-group">
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={loading || !tasks.trim() || !freeHours}
-          >
-            {loading ? (
-              <>
-                <span className="spinner" />
-                Analyzing Schedule...
-              </>
-            ) : (
-              <>
-                <Sparkles size={16} />
-                Run Reality Check
-              </>
-            )}
-          </button>
-
-          {tasks && (
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setTasks('');
-                setFreeHours('');
-                setResult(null);
-              }}
+            <select
+              className="input-field task-add-select"
+              value={newPriority}
+              onChange={(e) => setNewPriority(e.target.value)}
+              title="Priority"
             >
-              Clear
-            </button>
-          )}
-        </div>
-      </form>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
 
-      {error && (
-        <div
-          style={{
-            marginTop: '1.25rem',
-            padding: '0.85rem 1rem',
-            background: 'rgba(196, 30, 58, 0.15)',
-            border: '1px solid rgba(196, 30, 58, 0.4)',
-            borderRadius: '8px',
-            fontSize: '0.85rem',
-            color: '#ff8598',
-          }}
+            <select
+              className="input-field task-add-select"
+              value={newType}
+              onChange={(e) => setNewType(e.target.value)}
+              title="Commitment type"
+            >
+              <option value="flexible">Flexible</option>
+              <option value="fixed">Fixed</option>
+            </select>
+
+            <input
+              type="text"
+              className="input-field task-add-deadline"
+              placeholder="Deadline (optional)"
+              value={newDeadline}
+              onChange={(e) => setNewDeadline(e.target.value)}
+            />
+
+            <button type="submit" className="btn-secondary task-add-btn">
+              <Plus size={14} /> Add
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Constraints & Available Hours Row */}
+      <div className="form-row two-col" style={{ marginTop: '1.25rem' }}>
+        <div className="form-group">
+          <label className="form-label" htmlFor="free-hours-input">
+            <span>Actual Free Hours Available Today</span>
+            <span className="form-hint">Excl. classes & sleep</span>
+          </label>
+          <input
+            id="free-hours-input"
+            type="number"
+            step="0.5"
+            min="0.5"
+            max="24"
+            className="input-field"
+            value={freeHours}
+            onChange={(e) => setFreeHours(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="constraints-input">
+            <span>Personal Constraints (Optional)</span>
+            <span className="form-hint">Non-negotiable sleep, workouts, shifts</span>
+          </label>
+          <input
+            id="constraints-input"
+            type="text"
+            className="input-field"
+            placeholder="e.g. Need 7h sleep, gym is non-negotiable"
+            value={constraints}
+            onChange={(e) => setConstraints(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Action Bar */}
+      <div className="btn-group">
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={handleAnalyze}
+          disabled={loading || tasks.length === 0}
         >
-          {error}
+          {loading ? (
+            <>
+              <span className="spinner" />
+              <span>{progressStage || 'Evaluating Plan...'}</span>
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} />
+              Evaluate Plan Realism
+            </>
+          )}
+        </button>
+
+        {stats.highPressureTasks.length > 0 && (
+          <div className="pressure-summary-tag">
+            <AlertTriangle size={13} color="#ff7588" />
+            <span>High Pressure: {stats.highPressureTasks.map(t => t.title).slice(0, 2).join(', ')}</span>
+          </div>
+        )}
+      </div>
+
+      {appliedNotice && (
+        <div className="notice-banner success">
+          <CheckCircle2 size={15} />
+          <span>Suggested schedule applied! Tasks compressed and synchronized across the app.</span>
         </div>
       )}
 
-      {/* Result Card: Fades in smoothly (0.3s ease-in) */}
+      {error && (
+        <div className="notice-banner error">
+          <AlertTriangle size={15} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Results Section */}
       {result && (
         <div className="result-container">
           <div className="result-badge-bar">
@@ -198,12 +390,12 @@ export function RealityCheck({ onOpenApiModal }) {
               {result.isOverloaded ? (
                 <>
                   <AlertTriangle size={14} />
-                  Overload Flagged
+                  Overload Flagged ({stats.overloadHours}h deficit)
                 </>
               ) : (
                 <>
                   <CheckCircle2 size={14} />
-                  Schedule Feasible
+                  Schedule Feasible ({stats.balance}h buffer)
                 </>
               )}
             </div>
@@ -211,15 +403,8 @@ export function RealityCheck({ onOpenApiModal }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {result.isSimulated && (
                 <span
-                  style={{
-                    fontSize: '0.72rem',
-                    color: '#fde047',
-                    background: 'rgba(234, 179, 8, 0.1)',
-                    border: '1px solid rgba(234, 179, 8, 0.25)',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                  }}
+                  className="status-demo"
+                  style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
                   onClick={onOpenApiModal}
                   title="Click to add live Gemini API key"
                 >
@@ -233,31 +418,45 @@ export function RealityCheck({ onOpenApiModal }) {
                 onClick={handleCopy}
               >
                 {copied ? <Check size={13} /> : <Copy size={13} />}
-                {copied ? 'Copied' : 'Copy Plan'}
+                {copied ? 'Copied' : 'Copy Breakdown'}
               </button>
             </div>
           </div>
 
+          {/* Structured Analysis Card */}
           <div className="result-card-inner">
-            <ul>
+            <div className="analysis-summary-points">
               {result.lines.map((line, idx) => {
                 const isHeading = line.startsWith('• Revised Schedule:') || line.startsWith('• Prioritised Execution:');
                 const isSubBullet = line.startsWith('-') || line.startsWith('  -') || line.startsWith('P1') || line.startsWith('P2');
-                
+
                 return (
-                  <li
+                  <div
                     key={idx}
-                    style={{
-                      fontWeight: isHeading ? '600' : '400',
-                      color: isHeading ? '#ff8598' : 'var(--off-white)',
-                      paddingLeft: isSubBullet ? '2.2rem' : '1.4rem',
-                    }}
+                    className={`analysis-line ${isHeading ? 'line-heading' : ''} ${isSubBullet ? 'line-subbullet' : ''}`}
                   >
-                    {line.replace(/^[•\-*]\s*/, '')}
-                  </li>
+                    <span className="line-marker">{isHeading ? '❖' : '—'}</span>
+                    <span>{line.replace(/^[•\-*]\s*/, '')}</span>
+                  </div>
                 );
               })}
-            </ul>
+            </div>
+
+            {/* Apply Schedule Action with User Confirmation */}
+            {result.suggestedPlan && (
+              <div className="apply-plan-callout">
+                <div className="apply-plan-text">
+                  <strong>Ready to balance your schedule?</strong> Apply this trimmed layout to your active plan.
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary apply-plan-btn"
+                  onClick={handleApplySuggested}
+                >
+                  <TrendingUp size={15} /> Apply Suggested Schedule
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

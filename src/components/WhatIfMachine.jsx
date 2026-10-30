@@ -1,77 +1,108 @@
 import React, { useState } from 'react';
+import { useTasks } from '../context/TaskContext';
 import { analyzeWhatIf } from '../services/gemini';
-import { GitBranch, Compass, Sparkles, Scale, Copy, Check } from 'lucide-react';
+import {
+  Compass,
+  Scale,
+  Sparkles,
+  Copy,
+  Check,
+  GitBranch,
+  Layers,
+  Sliders,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react';
 import { SpiderIcon } from './Icons';
 
 const WHAT_IF_PRESETS = [
   {
     name: '36-Hour Hackathon Dilemma',
-    commitments: 'Algorithms midterm on Thursday, 12-page systems paper due Friday, already running on 6 hours sleep.',
     newThing: 'Join a 36-hour weekend Web3 hackathon with my club team',
+    estimatedHours: 16,
   },
   {
-    name: 'Part-Time Startup Role',
-    commitments: 'Full 18-credit course load, weekly lab reports, active soccer team practice on Tuesday & Thursday.',
-    newThing: 'Take an 15h/week part-time frontend internship offering good stipend',
+    name: 'Part-Time Startup Internship',
+    newThing: 'Take on a 15h/week part-time frontend internship with early-stage AI team',
+    estimatedHours: 15,
   },
   {
     name: 'Late-Night Gaming / Movie Sprint',
-    commitments: '8 AM database lab exam tomorrow morning, followed by project presentation at 11 AM.',
-    newThing: 'Stay up until 3 AM for a surprise Discord multiplayer release with high school friends',
+    newThing: 'Stay up until 3:30 AM for a surprise game release with high school friends',
+    estimatedHours: 4,
   },
 ];
 
 export function WhatIfMachine({ onOpenApiModal }) {
-  const [commitments, setCommitments] = useState(
-    'Algorithms midterm on Thursday, 12-page systems paper due Friday, already running on 6 hours sleep.'
-  );
-  const [newThing, setNewThing] = useState(
-    'Join a 36-hour weekend Web3 hackathon with my club team'
-  );
+  const { tasks, freeHours, tasksAsPromptText, requestScheduleApplication } = useTasks();
+
+  const [newThing, setNewThing] = useState('Join a 36-hour weekend Web3 hackathon with my club team');
+  const [estimatedHours, setEstimatedHours] = useState('16');
   const [loading, setLoading] = useState(false);
+  const [progressStage, setProgressStage] = useState('');
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [appliedNotice, setAppliedNotice] = useState(false);
+
+  // Pre-load high impact demo state on initial load
   const [result, setResult] = useState({
     scenarioA: [
-      'High adrenaline and rapid experiential gain from tackling the hackathon, but your margin for error on your Thursday midterm and Friday paper drops to near zero.',
-      'Severe sleep debt and cognitive fragmentation will compound over the weekend, creating a hangover that jeopardizes next week’s presentations.',
-      'Manageable only if you finish 80% of the systems paper before Friday 5 PM and intentionally deprioritize hackathon side-tracks.'
+      'High-voltage experiential gain and portfolio impact from shipping with your team, but your margin for error on your Thursday Algorithms midterm and Friday paper drops to near zero.',
+      'Sleep debt of 8+ hours will compound, creating severe brain fog during next Monday’s lab presentations.',
+      'Manageable only if you finish 80% of your systems paper before Friday 5 PM and intentionally deprioritize side-tracks.'
     ],
     scenarioB: [
       'You protect deep revision windows, 7+ hours of nightly sleep, and high execution quality for your existing midterm and paper.',
       'Zero spillover risk: your academic standing, mental composure, and recovery cycles remain completely guarded.',
       'You miss the team camaraderie, resume-worthy project sprint, and potential networking with industry sponsors.'
     ],
-    verdict: 'Saying yes buys high-stakes opportunity at the direct cost of academic breathing room; saying no protects your grades and peace of mind at the cost of short-term adventure.',
+    thirdPath: [
+      'Accept with a strict scope cap: commit 10 focused daytime hours on Saturday for core frontend/API work, then leave by 9 PM to sleep.',
+      'Temporarily defer the Club Frontend project to next week, immediately freeing 2.5 hours of breathing space.',
+      'Negotiate with your hackathon teammates upfront so they know you are an MVP contributor, not an all-nighter hero.'
+    ],
+    verdict: 'Saying yes buys high-stakes opportunity at the direct cost of academic breathing room; saying no protects your grades and peace of mind at the cost of short-term novelty; the Third Path requires firm boundaries to capture the learning without sacrificing your GPA.',
     isSimulated: true,
-    rawText: 'SCENARIO A:\n• High adrenaline and rapid experiential gain...\nSCENARIO B:\n• You protect deep revision windows...\nVERDICT: Saying yes buys high-stakes opportunity...'
+    rawText: 'SCENARIO A:\n• High-voltage experiential gain...\nSCENARIO B:\n• You protect deep revision windows...\nTHE THIRD PATH:\n• Accept with a strict scope cap...\nVERDICT: Saying yes buys high-stakes opportunity...'
   });
-  const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
 
   const handleApplyPreset = (preset) => {
-    setCommitments(preset.commitments);
     setNewThing(preset.newThing);
-    setResult(null);
-    setError(null);
+    setEstimatedHours(preset.estimatedHours.toString());
   };
 
   const handleSimulate = async (e) => {
-    e.preventDefault();
-    if (!commitments.trim() || !newThing.trim()) return;
+    e?.preventDefault?.();
+    if (!newThing.trim()) return;
 
     setLoading(true);
     setError(null);
+    setProgressStage('Analyzing commitment baseline...');
 
     try {
       const data = await analyzeWhatIf({
-        commitments: commitments.trim(),
-        newThing: newThing.trim(),
+        commitments: tasksAsPromptText,
+        newThing: `${newThing.trim()} (~${estimatedHours} hours needed)`,
+        structuredTasks: tasks,
+        freeHours,
+        onProgress: (stage) => setProgressStage(stage),
       });
       setResult(data);
     } catch (err) {
-      setError(err.message || 'Failed to simulate scenarios. Please try again.');
+      setError(err.message || 'Failed to simulate decision trajectories.');
     } finally {
       setLoading(false);
+      setProgressStage('');
     }
+  };
+
+  const handleApplyThirdPath = () => {
+    if (!result?.thirdPath) return;
+
+    requestScheduleApplication(result.thirdPath, 'What-If Machine (Third Path)', () => {
+      setAppliedNotice(true);
+      setTimeout(() => setAppliedNotice(false), 3500);
+    });
   };
 
   const handleCopy = () => {
@@ -86,9 +117,10 @@ export function WhatIfMachine({ onOpenApiModal }) {
       <div className="card-header">
         <div className="card-header-left">
           <div className="card-icon-badge">
-            <GitBranch size={22} />
+            <Compass size={22} />
           </div>
           <div className="card-title-group">
+            <div className="card-section-label">02 · SIMULATE DIVERGENT FUTURES</div>
             <h2>WHAT-IF MACHINE</h2>
             <p>Simulate the cascading fallout of taking on one more commitment before you commit.</p>
           </div>
@@ -96,9 +128,7 @@ export function WhatIfMachine({ onOpenApiModal }) {
 
         {/* Quick Presets */}
         <div className="presets-container">
-          <span style={{ fontSize: '0.74rem', color: 'var(--off-white-dim)', marginRight: '0.2rem' }}>
-            Presets:
-          </span>
+          <span className="presets-label">Presets:</span>
           {WHAT_IF_PRESETS.map((p, idx) => (
             <button
               key={idx}
@@ -114,110 +144,108 @@ export function WhatIfMachine({ onOpenApiModal }) {
       </div>
 
       <form onSubmit={handleSimulate}>
-        <div className="form-group">
-          <label className="form-label" htmlFor="commitments">
-            <span>Your Existing Commitments & Deadlines</span>
-            <span className="form-hint">Exams, papers, shifts, family</span>
-          </label>
-          <textarea
-            id="commitments"
-            className="input-field"
-            rows={3}
-            placeholder="e.g. DSA midterm in 3 days, final project draft due Friday, 4h part-time shift Saturday..."
-            value={commitments}
-            onChange={(e) => setCommitments(e.target.value)}
-            required
-          />
+        {/* Baseline Commitments Preview */}
+        <div className="commitments-baseline-strip">
+          <div className="baseline-header">
+            <span className="baseline-title">
+              <Layers size={13} /> Active Commitments Baseline:
+            </span>
+            <span className="baseline-hours">{tasks.length} tasks · {tasks.reduce((s, t) => s + t.duration, 0)}h total</span>
+          </div>
+          <div className="baseline-chips">
+            {tasks.map(t => (
+              <span key={t.id} className="baseline-chip">
+                {t.title} ({t.duration}h)
+              </span>
+            ))}
+          </div>
         </div>
 
-        <div className="form-group">
-          <label className="form-label" htmlFor="new-thing">
-            <span>What if I take on...</span>
-            <span className="form-hint">The new opportunity, event, or temptation</span>
-          </label>
-          <textarea
-            id="new-thing"
-            className="input-field"
-            rows={2}
-            placeholder="e.g. What if I join this 36-hour hackathon tomorrow?"
-            value={newThing}
-            onChange={(e) => setNewThing(e.target.value)}
-            required
-          />
+        <div className="form-row two-col" style={{ marginTop: '1.25rem' }}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="new-thing-input">
+              <span>What if I take on...</span>
+              <span className="form-hint">The new event, project, role, or temptation</span>
+            </label>
+            <textarea
+              id="new-thing-input"
+              className="input-field"
+              rows={2}
+              placeholder="e.g. Join a 36-hour weekend Web3 hackathon with my club team..."
+              value={newThing}
+              onChange={(e) => setNewThing(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="new-hours-input">
+              <span>Estimated Hours Needed</span>
+              <span className="form-hint">Approximate time required</span>
+            </label>
+            <input
+              id="new-hours-input"
+              type="number"
+              step="0.5"
+              min="0.5"
+              max="100"
+              className="input-field"
+              value={estimatedHours}
+              onChange={(e) => setEstimatedHours(e.target.value)}
+              placeholder="e.g. 16"
+            />
+          </div>
         </div>
 
         <div className="btn-group">
           <button
             type="submit"
             className="btn-primary"
-            disabled={loading || !commitments.trim() || !newThing.trim()}
+            disabled={loading || !newThing.trim()}
           >
             {loading ? (
               <>
                 <span className="spinner" />
-                Simulating Scenarios...
+                <span>{progressStage || 'Simulating Decision...'}</span>
               </>
             ) : (
               <>
-                <Compass size={16} />
-                Simulate Decision
+                <GitBranch size={16} />
+                Simulate Scenarios & The Third Path
               </>
             )}
           </button>
-
-          {(commitments || newThing) && (
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setCommitments('');
-                setNewThing('');
-                setResult(null);
-              }}
-            >
-              Clear
-            </button>
-          )}
         </div>
       </form>
 
-      {error && (
-        <div
-          style={{
-            marginTop: '1.25rem',
-            padding: '0.85rem 1rem',
-            background: 'rgba(196, 30, 58, 0.15)',
-            border: '1px solid rgba(196, 30, 58, 0.4)',
-            borderRadius: '8px',
-            fontSize: '0.85rem',
-            color: '#ff8598',
-          }}
-        >
-          {error}
+      {appliedNotice && (
+        <div className="notice-banner success" style={{ marginTop: '1rem' }}>
+          <CheckCircle2 size={15} />
+          <span>The Third Path schedule applied! Boundaries established in your schedule.</span>
         </div>
       )}
 
-      {/* Results Section: Side-by-Side Scenario A & B + Spider Icon + Verdict */}
+      {error && (
+        <div className="notice-banner error" style={{ marginTop: '1rem' }}>
+          <AlertTriangle size={15} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Results Section */}
       {result && (
         <div className="result-container">
           <div className="result-badge-bar">
             <div className="result-badge" style={{ background: 'rgba(196, 30, 58, 0.15)', color: 'var(--off-white)' }}>
               <Scale size={14} style={{ color: 'var(--crimson)' }} />
-              Divergent Trajectories
+              Divergent Trajectories · 3 Paths Evaluated
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               {result.isSimulated && (
                 <span
-                  style={{
-                    fontSize: '0.72rem',
-                    color: '#fde047',
-                    background: 'rgba(234, 179, 8, 0.1)',
-                    border: '1px solid rgba(234, 179, 8, 0.25)',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                  }}
+                  className="status-demo"
+                  style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer' }}
                   onClick={onOpenApiModal}
                   title="Click to add live Gemini API key"
                 >
@@ -231,21 +259,19 @@ export function WhatIfMachine({ onOpenApiModal }) {
                 onClick={handleCopy}
               >
                 {copied ? <Check size={13} /> : <Copy size={13} />}
-                {copied ? 'Copied' : 'Copy Scenarios'}
+                {copied ? 'Copied' : 'Copy All'}
               </button>
             </div>
           </div>
 
-          {/* Two side-by-side cards separated by a small spider icon */}
-          <div className="scenarios-grid">
+          {/* Three Paths Grid: Scenario A, Scenario B, The Third Path */}
+          <div className="scenarios-three-grid">
             {/* Scenario A: Accept */}
             <div className="scenario-card accept">
               <div className="scenario-header">
                 <div>
                   <h3 className="scenario-title">SCENARIO A</h3>
-                  <div style={{ fontSize: '0.8rem', color: '#ff8598', marginTop: '0.15rem' }}>
-                    You Accept The Invitation
-                  </div>
+                  <div className="scenario-sub red">Accept Opportunity</div>
                 </div>
                 <span className="scenario-badge accept-badge">High Risk / High Upside</span>
               </div>
@@ -256,25 +282,14 @@ export function WhatIfMachine({ onOpenApiModal }) {
               </ul>
             </div>
 
-            {/* Subtle Spider Separator Icon */}
-            <div className="spider-divider" title="Decision Nexus">
-              <div className="spider-divider-line" />
-              <div className="spider-divider-icon">
-                <SpiderIcon size={20} color="#C41E3A" />
-              </div>
-              <div className="spider-divider-line" />
-            </div>
-
             {/* Scenario B: Decline */}
             <div className="scenario-card decline">
               <div className="scenario-header">
                 <div>
                   <h3 className="scenario-title">SCENARIO B</h3>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--off-white-muted)', marginTop: '0.15rem' }}>
-                    You Decline & Hold The Line
-                  </div>
+                  <div className="scenario-sub blue">Decline & Guard Base</div>
                 </div>
-                <span className="scenario-badge decline-badge">Stability / Buffer Protected</span>
+                <span className="scenario-badge decline-badge">Stability & Buffer</span>
               </div>
               <ul className="scenario-bullets">
                 {result.scenarioB.map((point, idx) => (
@@ -282,9 +297,32 @@ export function WhatIfMachine({ onOpenApiModal }) {
                 ))}
               </ul>
             </div>
+
+            {/* The Third Path: Accept with Adjustments */}
+            <div className="scenario-card third-path">
+              <div className="scenario-header">
+                <div>
+                  <h3 className="scenario-title">THE THIRD PATH</h3>
+                  <div className="scenario-sub emerald">Accept with Adjustments</div>
+                </div>
+                <span className="scenario-badge third-path-badge">Disciplined Compromise</span>
+              </div>
+              <ul className="scenario-bullets">
+                {result.thirdPath.map((point, idx) => (
+                  <li key={idx}>{point}</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                className="btn-secondary third-path-apply-btn"
+                onClick={handleApplyThirdPath}
+              >
+                <Sliders size={13} /> Apply Adjusted Schedule
+              </button>
+            </div>
           </div>
 
-          {/* Honest Trade-off Verdict */}
+          {/* Verdict Card */}
           {result.verdict && (
             <div className="verdict-card">
               <div className="verdict-header">
