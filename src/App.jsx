@@ -81,7 +81,7 @@ export default function App() {
 
           <p className="hero-body">
             Most apps tell you what to do. Spider-Sense helps you understand what you{' '}
-            <em>can</em> realistically do — and what happens if you choose differently.
+            <em className="hero-highlight-can">can</em> realistically do — and what happens if you choose differently.
           </p>
 
           <p className="hero-quote">
@@ -105,13 +105,13 @@ export default function App() {
           </div>
         )}
 
-        {/* The Two Core Features Grid */}
+        {/* The Two Core Features Grid: What-If Machine first for immediate high-impact demo */}
         <div className="features-grid">
-          {/* Feature 1: REALITY CHECK */}
-          <RealityCheck onOpenApiModal={() => setIsApiModalOpen(true)} />
-
-          {/* Feature 2: WHAT-IF MACHINE */}
+          {/* Feature 1: WHAT-IF MACHINE (Lead feature) */}
           <WhatIfMachine onOpenApiModal={() => setIsApiModalOpen(true)} />
+
+          {/* Feature 2: REALITY CHECK */}
+          <RealityCheck onOpenApiModal={() => setIsApiModalOpen(true)} />
         </div>
       </main>
 
@@ -119,9 +119,6 @@ export default function App() {
       <footer className="app-footer">
         <p className="footer-text">
           Built for The CodeBreakers Club · GenAI Domain Task · Spider-Man Universe
-        </p>
-        <p className="footer-quote">
-          Designed with deep navy (#0A0E1A), crimson red (#C41E3A), and off-white (#F5F0E8).
         </p>
       </footer>
 

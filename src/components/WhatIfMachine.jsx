@@ -22,10 +22,28 @@ const WHAT_IF_PRESETS = [
 ];
 
 export function WhatIfMachine({ onOpenApiModal }) {
-  const [commitments, setCommitments] = useState('');
-  const [newThing, setNewThing] = useState('');
+  const [commitments, setCommitments] = useState(
+    'Algorithms midterm on Thursday, 12-page systems paper due Friday, already running on 6 hours sleep.'
+  );
+  const [newThing, setNewThing] = useState(
+    'Join a 36-hour weekend Web3 hackathon with my club team'
+  );
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState({
+    scenarioA: [
+      'High adrenaline and rapid experiential gain from tackling the hackathon, but your margin for error on your Thursday midterm and Friday paper drops to near zero.',
+      'Severe sleep debt and cognitive fragmentation will compound over the weekend, creating a hangover that jeopardizes next week’s presentations.',
+      'Manageable only if you finish 80% of the systems paper before Friday 5 PM and intentionally deprioritize hackathon side-tracks.'
+    ],
+    scenarioB: [
+      'You protect deep revision windows, 7+ hours of nightly sleep, and high execution quality for your existing midterm and paper.',
+      'Zero spillover risk: your academic standing, mental composure, and recovery cycles remain completely guarded.',
+      'You miss the team camaraderie, resume-worthy project sprint, and potential networking with industry sponsors.'
+    ],
+    verdict: 'Saying yes buys high-stakes opportunity at the direct cost of academic breathing room; saying no protects your grades and peace of mind at the cost of short-term adventure.',
+    isSimulated: true,
+    rawText: 'SCENARIO A:\n• High adrenaline and rapid experiential gain...\nSCENARIO B:\n• You protect deep revision windows...\nVERDICT: Saying yes buys high-stakes opportunity...'
+  });
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
